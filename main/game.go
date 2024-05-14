@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"math/rand/v2"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/malpiszonekx4/ssh-tic-tac-toe/ttt"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -15,44 +16,28 @@ import (
 	"github.com/samber/lo"
 )
 
-type TileState rune
+type PlayerSymbol rune
 
 const (
-	EmptyTile  TileState = ' '
-	CircleTile TileState = '●'
-	CrossTile  TileState = 'Χ'
+	EmptySymbol  PlayerSymbol = ' '
+	CircleSymbol PlayerSymbol = '●'
+	CrossSymbol  PlayerSymbol = 'Χ'
 )
 
-type Player bool
-
-const (
-	X Player = false
-	O Player = true
-)
-
-func (p Player) getTile() TileState {
-	if p == X {
-		return CrossTile
-	} else {
-		return CircleTile
-	}
-}
-
-func (p Player) getName() string {
-	switch p {
-	case X:
-		return "cross"
-	case O:
-		return "circle"
+func getSymbolForTile(t ttt.Tile) PlayerSymbol {
+	switch t {
+	case ttt.CrossTile:
+		return CrossSymbol
+	case ttt.CircleTile:
+		return CircleSymbol
 	default:
-		return ""
+		return EmptySymbol
 	}
 }
 
 type Model struct {
-	Map                     [][]TileState
+	Game                    *ttt.TicTacToe
 	moveInput               *textinput.Model
-	currentPlayer           Player
 	playAgainConfirmation   *confirmation.Model
 	displayPlayAgainConfirm bool
 	statusMsg               string
@@ -60,35 +45,14 @@ type Model struct {
 
 func initialModel() Model {
 	model := Model{
-		Map: [][]TileState{
-			{EmptyTile, EmptyTile, EmptyTile},
-			{EmptyTile, EmptyTile, EmptyTile},
-			{EmptyTile, EmptyTile, EmptyTile},
-		},
 		// moveInput:     createInput(),
-		currentPlayer:           getRandomPlayer(),
+		Game:                    ttt.CreateGame(),
 		playAgainConfirmation:   confirmation.NewModel(confirmation.New("Wanna play again?", confirmation.Yes)),
 		displayPlayAgainConfirm: false,
 		statusMsg:               "",
 	}
 	model.moveInput = createInput(&model)
 	return model
-}
-
-func getRandomPlayer() Player {
-	if rand.N(2) == 0 {
-		return X
-	} else {
-		return O
-	}
-}
-
-func (m *Model) nextPlayer() {
-	if m.currentPlayer == X {
-		m.currentPlayer = O
-	} else {
-		m.currentPlayer = X
-	}
 }
 
 func createInput(model *Model) *textinput.Model {
@@ -100,7 +64,7 @@ func createInput(model *Model) *textinput.Model {
 		}
 
 		row, column := parsePlayerMove(input)
-		if model.Map[row][column] != EmptyTile {
+		if model.Game.Map[row][column] != ttt.EmptyTile {
 			return fmt.Errorf("tile not empty")
 		}
 
@@ -111,10 +75,10 @@ func createInput(model *Model) *textinput.Model {
 	return textinput.NewModel(moveInput)
 }
 
-func stringifyTileState(ts [][]TileState) [][]string {
-	return lo.Map(ts, func(x []TileState, _ int) []string {
-		return lo.Map(x, func(y TileState, _ int) string {
-			return string(y)
+func stringifyTileState(ts [][]ttt.Tile) [][]string {
+	return lo.Map(ts, func(x []ttt.Tile, _ int) []string {
+		return lo.Map(x, func(y ttt.Tile, _ int) string {
+			return string(getSymbolForTile(y))
 		})
 	})
 }
@@ -159,20 +123,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 					row, column := parsePlayerMove(val)
 
-					m.Map[row][column] = m.currentPlayer.getTile()
+					moveResult := m.Game.Move(row, column)
 
-					if checkWinInColumn(m.Map) || checkWinInRow(m.Map) || checkWinInDiagonal(m.Map) {
+					switch moveResult {
+					case ttt.Win:
 						m.displayPlayAgainConfirm = true
-						m.statusMsg = "The winner is " + m.currentPlayer.getName()
-					} else if noMoreMoves(m.Map) {
+						m.statusMsg = "The winner is " + m.Game.CurrentPlayer.GetShapeName()
+					case ttt.NoMoreMoves:
 						m.displayPlayAgainConfirm = true
 						m.statusMsg = "It's a tie"
+					case ttt.Ok:
+						m.moveInput = createInput(&m)
+						m.moveInput.Init()
 					}
-
-					m.nextPlayer()
-
-					m.moveInput = createInput(&m)
-					m.moveInput.Init()
 				}
 			}
 		}
@@ -180,89 +143,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func noMoreMoves(gameMap [][]TileState) bool {
-	emptyTiles := 0
-	for _, row := range gameMap {
-		for _, cell := range row {
-			if cell == EmptyTile {
-				emptyTiles++
-			}
-		}
-	}
-	return emptyTiles == 0
-}
-
-func checkWinInColumn(gameMap [][]TileState) bool {
-	row1 := gameMap[0]
-	row2 := gameMap[1]
-	row3 := gameMap[2]
-
-	for _, col := range []int{0, 1, 2} {
-		if row1[col] != EmptyTile && row1[col] == row2[col] && row2[col] == row3[col] {
-			return true
-		}
-	}
-
-	return false
-}
-
-func checkWinInRow(gameMap [][]TileState) bool {
-	for _, row := range gameMap {
-		if row[0] != EmptyTile && row[0] == row[1] && row[1] == row[2] {
-			return true
-		}
-	}
-
-	return false
-}
-
-func checkWinInDiagonal(gameMap [][]TileState) bool {
-	row1 := gameMap[0]
-	row2 := gameMap[1]
-	row3 := gameMap[2]
-
-	if row1[2] != EmptyTile && row1[2] == row2[1] && row2[1] == row3[0] {
-		return true
-	}
-	if row1[0] != EmptyTile && row1[0] == row2[1] && row2[1] == row3[2] {
-		return true
-	}
-
-	return false
-}
-
-func parsePlayerMove(input string) (row uint32, column uint32) {
+func parsePlayerMove(input string) (row ttt.Row, column ttt.Column) {
 	char1 := rune(input[0])
 	char2 := rune(input[1])
 
 	switch char1 {
 	case 'a', 'A':
-		column = 0
+		column = ttt.Column1
 	case 'b', 'B':
-		column = 1
+		column = ttt.Colmun2
 	case 'c', 'C':
-		column = 2
+		column = ttt.Colmun3
 	default:
 		tmpRow, err := strconv.Atoi(string(char1))
 		if err != nil {
 			fmt.Println("Error while parsing input")
 		}
-		row = uint32(tmpRow) - 1
+		row = ttt.Row(uint32(tmpRow) - 1)
 	}
 
 	switch char2 {
 	case 'a', 'A':
-		column = 0
+		column = ttt.Column1
 	case 'b', 'B':
-		column = 1
+		column = ttt.Colmun2
 	case 'c', 'C':
-		column = 2
+		column = ttt.Colmun3
 	default:
 		tmpRow, err := strconv.Atoi(string(char2))
 		if err != nil {
 			fmt.Println("Error while parsing input")
 		}
-		row = uint32(tmpRow) - 1
+		row = ttt.Row(uint32(tmpRow) - 1)
 	}
 
 	return
@@ -271,7 +183,7 @@ func parsePlayerMove(input string) (row uint32, column uint32) {
 func (m Model) View() string {
 	t := table.New().
 		Border(lipgloss.NormalBorder()).
-		Rows(stringifyTileState(m.Map)...).
+		Rows(stringifyTileState(m.Game.Map)...).
 		BorderRow(true).
 		BorderColumn(true).
 		StyleFunc(func(row, col int) lipgloss.Style {

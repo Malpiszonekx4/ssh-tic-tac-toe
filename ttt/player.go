@@ -23,9 +23,9 @@ func (p Player) getTileState() Tile {
 func (p Player) GetShapeName() string {
 	switch p {
 	case Cross:
-		return "cross"
+		return "Cross"
 	case Circle:
-		return "circle"
+		return "Circle"
 	default:
 		return ""
 	}

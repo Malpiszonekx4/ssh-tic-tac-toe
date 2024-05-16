@@ -128,7 +128,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					switch moveResult {
 					case ttt.Win:
 						m.displayPlayAgainConfirm = true
-						m.statusMsg = "The winner is " + m.Game.CurrentPlayer.GetShapeName()
+						m.statusMsg = m.Game.CurrentPlayer.GetShapeName() + " won!"
 					case ttt.NoMoreMoves:
 						m.displayPlayAgainConfirm = true
 						m.statusMsg = "It's a tie"

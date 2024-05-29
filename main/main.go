@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/akamensky/argparse"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/log"
 	"github.com/charmbracelet/ssh"
@@ -23,7 +25,7 @@ const (
 	port = "23234"
 )
 
-func main() {
+func sshMain() {
 	s, err := wish.NewServer(
 		wish.WithAddress(net.JoinHostPort(host, port)),
 		wish.WithHostKeyPath(".ssh/id_ed25519"),
@@ -62,4 +64,27 @@ func teaHandler(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 	model := initialModel()
 
 	return model, []tea.ProgramOption{tea.WithAltScreen()}
+}
+
+func standaloneMain() {
+	p := tea.NewProgram(initialModel())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v", err)
+		os.Exit(1)
+	}
+}
+
+func main() {
+	parser := argparse.NewParser("ssh-ttt", "")
+	standalone := parser.Flag("s", "standalone", &argparse.Options{Default: false})
+	err := parser.Parse(os.Args)
+	if err != nil {
+		fmt.Print(parser.Usage(err))
+	}
+
+	if *standalone {
+		standaloneMain()
+	} else {
+		sshMain()
+	}
 }

@@ -1,10 +1,9 @@
 FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS build
+ARG TARGETARCH
 WORKDIR /src
 COPY . ./
-ARG TARGETPLATFORM
-ENV TARGETPLATFORM=${TARGETPLATFORM}
-RUN export GOARCH=${TARGETPLATFORM#*/} && \
-    go build -o ./output ./main
+RUN go mod download
+RUN GOARCH=$TARGETARCH go build -o ./output ./main
 
 FROM alpine:3 as final
 COPY --from=build /src/output /app/ssh-ttt

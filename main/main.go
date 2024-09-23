@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -20,14 +21,9 @@ import (
 	"github.com/charmbracelet/wish/logging"
 )
 
-const (
-	host = "0.0.0.0"
-	port = "23234"
-)
-
-func sshMain() {
+func sshMain(host *string, port *int) {
 	s, err := wish.NewServer(
-		wish.WithAddress(net.JoinHostPort(host, port)),
+		wish.WithAddress(net.JoinHostPort(*host, strconv.Itoa(*port))),
 		wish.WithHostKeyPath(".ssh/id_ed25519"),
 		wish.WithMiddleware(
 			bubbletea.Middleware(teaHandler),
@@ -41,7 +37,7 @@ func sshMain() {
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	log.Info("Starting SSH server", "host", host, "port", port)
+	log.Info("Starting SSH server", "host", *host, "port", *port)
 	go func() {
 		if err = s.ListenAndServe(); err != nil && !errors.Is(err, ssh.ErrServerClosed) {
 			log.Error("Could not start server", "error", err)
@@ -75,8 +71,10 @@ func standaloneMain() {
 }
 
 func main() {
-	parser := argparse.NewParser("ssh-ttt", "")
-	standalone := parser.Flag("s", "standalone", &argparse.Options{Default: false})
+	parser := argparse.NewParser("ssh-ttt", "Play Tic-tac-toe in your terminal!")
+	standalone := parser.Flag("s", "standalone", &argparse.Options{Default: false, Help: "Starts the game in current terminal instead of starting the SSH server"})
+	host := parser.String("l", "listen", &argparse.Options{Default: "0.0.0.0", Help: "Interface to listen on"})
+	port := parser.Int("p", "port", &argparse.Options{Default: 23234, Help: "Port to listen on"})
 	err := parser.Parse(os.Args)
 	if err != nil {
 		fmt.Print(parser.Usage(err))
@@ -85,6 +83,6 @@ func main() {
 	if *standalone {
 		standaloneMain()
 	} else {
-		sshMain()
+		sshMain(host, port)
 	}
 }

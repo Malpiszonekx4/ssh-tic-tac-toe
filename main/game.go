@@ -32,11 +32,10 @@ func initialModel() Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	m.grid.Init()
-	m.playAgainConfirmation.Init()
-
-	// Just return `nil`, which means "no I/O right now, please."
-	return nil
+	return tea.Batch(
+		m.grid.Init(),
+		m.playAgainConfirmation.Init(),
+	)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -78,6 +77,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+	case ToggleCursorBlinkMsg:
+		_, cmd := m.grid.Update(msg)
+		return m, cmd
 	}
 	return m, nil
 }

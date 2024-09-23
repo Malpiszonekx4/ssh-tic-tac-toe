@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/malpiszonekx4/ssh-tic-tac-toe/ttt"
@@ -14,18 +15,28 @@ type Point struct {
 
 func NewGrid(game *ttt.TicTacToe) *Grid {
 	return &Grid{
-		game:         game,
-		selectedCell: &Point{},
+		game:             game,
+		selectedCell:     &Point{},
+		selectionVisible: new(bool),
 	}
 }
 
 type Grid struct {
-	game         *ttt.TicTacToe
-	selectedCell *Point
+	game             *ttt.TicTacToe
+	selectedCell     *Point
+	selectionVisible *bool
+}
+
+type ToggleCursorBlinkMsg time.Time
+
+func tickSelectionBlink() tea.Cmd {
+	return tea.Every(time.Second/2, func(t time.Time) tea.Msg {
+		return ToggleCursorBlinkMsg(t)
+	})
 }
 
 func (m Grid) Init() tea.Cmd {
-	return nil
+	return tickSelectionBlink()
 }
 
 func (m Grid) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -34,15 +45,23 @@ func (m Grid) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "d", "right":
 			m.selectedCell.X = max(0, min(len(m.game.Map[0])-1, m.selectedCell.X+1))
+			*m.selectionVisible = true
 		case "a", "left":
 			m.selectedCell.X = max(0, min(len(m.game.Map[0])-1, m.selectedCell.X-1))
+			*m.selectionVisible = true
 		case "w", "up":
 			m.selectedCell.Y = max(0, min(len(m.game.Map[0])-1, m.selectedCell.Y-1))
+			*m.selectionVisible = true
 		case "s", "down":
 			m.selectedCell.Y = max(0, min(len(m.game.Map[0])-1, m.selectedCell.Y+1))
+			*m.selectionVisible = true
 		case "enter", " ":
+			*m.selectionVisible = true
 			return m, tea.Quit
 		}
+	case ToggleCursorBlinkMsg:
+		*m.selectionVisible = !*m.selectionVisible
+		return m, tickSelectionBlink()
 	}
 	return m, nil
 }
@@ -57,13 +76,13 @@ func (m Grid) View() string {
 	writeHeader(&builder, columns)
 
 	for i := range rows {
-		// "│   │   │   │"
 		var selectedCell *int = nil
 
-		if i == int(m.selectedCell.Y) {
+		if m.selectionVisible != nil && *m.selectionVisible && i == int(m.selectedCell.Y) {
 			selectedCell = &m.selectedCell.X
 		}
 
+		// "│   │   │   │"
 		writeRow(&builder, m.game.Map[i], selectedCell)
 
 		if i+1 == rows {
